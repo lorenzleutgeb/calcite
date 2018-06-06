@@ -1,0 +1,84 @@
+{
+   "paths" : {
+      "rainbow/{id}.json" : {
+         "get" : {
+            "parameters" : [
+               {
+                  "type" : "integer",
+                  "in" : "query",
+                  "name" : "id",
+                  "required" : true
+               }
+            ],
+            "responses" : {
+               "200" : {
+                  "schema" : {
+                     "$ref" : "#/definitions/Rainbow"
+                  }
+               }
+            }
+         }
+      },
+      "rainbow/string_{a_string}.json" : {
+         "get" : {
+            "parameters" : [
+               {
+                  "type" : "string",
+                  "in" : "query",
+                  "name" : "a_string",
+                  "required" : true
+               }
+            ],
+            "responses" : {
+               "200" : {
+                  "schema" : {
+                     "$ref" : "#/definitions/Rainbow"
+                  }
+               }
+            }
+         }
+      }
+   },
+   "host" : "",
+   "schemes" : [
+      "file"
+   ],
+   "definitions" : {
+      "Rainbow" : {
+         "type" : "object",
+         "properties" : {
+            "a_string" : {
+               "type" : "string"
+            },
+            "id" : {
+               "type" : "integer"
+            }
+         }
+      }
+   },
+   "swagger" : "2.0",
+   "basePath" : "src/test/resources/openapi/"
+}
+
+/*
+       "rainbow/byid" : {
+           "get" : {
+               "parameters" : [
+                   {
+                       "type" : "integer",
+                       "in" : "query",
+                       "name" : "id",
+                       "required" : true,
+                       "type" : "array"
+                   }
+               ],
+               "responses" : {
+                   "200": {
+                       "schema" : {
+                           "$ref" : "#/definitions/Rainbow"
+                       }
+                   }
+               }
+           }
+       }
+*/
