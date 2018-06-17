@@ -16,11 +16,18 @@
  */
 package org.apache.calcite.adapter.openapi;
 
-import junit.framework.TestCase;
-
-import org.junit.Test;
+import com.google.common.base.Function;
+import org.apache.calcite.jdbc.CalciteConnection;
+import org.apache.calcite.schema.Schema;
+import org.apache.calcite.util.Util;
+import org.junit.After;
 import org.junit.Assert;
+import org.junit.Before;
+import org.junit.Test;
 
+import java.io.UnsupportedEncodingException;
+import java.net.URL;
+import java.net.URLDecoder;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.ResultSet;
@@ -34,10 +41,10 @@ import java.util.stream.Collectors;
 /**
  * Tests for the OpenAPI adapter.
  */
-public class OpenAPITest extends TestCase {
+public class OpenAPITest {
 
-  Connection connection;
-  Statement statement;
+  private Connection connection;
+  private Statement statement;
 
   private static int count(ResultSet resultSet) throws SQLException {
     int count = 0;
@@ -67,7 +74,7 @@ public class OpenAPITest extends TestCase {
     return result.stream().collect(Collectors.joining(", "));
   }
 
-  @Override protected void setUp() throws SQLException {
+  @Before public void setUp() throws SQLException {
     final Properties properties = new Properties();
     connection = DriverManager.getConnection("jdbc:calcite:", properties);
     final CalciteConnection calciteConnection = connection.unwrap(
@@ -82,7 +89,7 @@ public class OpenAPITest extends TestCase {
     statement = connection.createStatement();
   }
 
-  @Override protected void tearDown() throws SQLException {
+  @After public void tearDown() throws SQLException {
     connection.close();
   }
 
@@ -161,6 +168,74 @@ public class OpenAPITest extends TestCase {
       statement.executeQuery(sql);
       Assert.fail();
     } catch (SQLException e) {
+    }
+  }
+
+  @Test public void withModel() throws SQLException {
+    final String sql = "select \"id\", \"name\" from \"PetStore\".\"Pet\" "
+        + "where \"id\" = 109";
+
+    checkSql(sql, "model", r -> {
+      try {
+        Assert.assertEquals("id=109; name=doggiepartha", collect(r));
+      } catch (SQLException e) {
+        Assert.fail();
+      }
+      System.out.println(r);
+      return null;
+    });
+  }
+
+  private void checkSql(String sql, String model, Function<ResultSet, Void> fn)
+      throws SQLException {
+    Connection connection = null;
+    Statement statement = null;
+    try {
+      Properties info = new Properties();
+      info.put("model", jsonPath(model));
+      connection = DriverManager.getConnection("jdbc:calcite:", info);
+      statement = connection.createStatement();
+      final ResultSet resultSet =
+          statement.executeQuery(
+              sql);
+      fn.apply(resultSet);
+    } finally {
+      close(connection, statement);
+    }
+  }
+
+  private String jsonPath(String model) {
+    return resourcePath(model + ".json");
+  }
+
+  private String resourcePath(String path) {
+    final URL url = OpenAPITest.class.getResource("/" + path);
+    // URL converts a space to %20, undo that.
+    try {
+      String s = URLDecoder.decode(url.toString(), "UTF-8");
+      if (s.startsWith("file:")) {
+        s = s.substring("file:".length());
+      }
+      return s;
+    } catch (UnsupportedEncodingException e) {
+      throw new RuntimeException(e);
+    }
+  }
+
+  private void close(Connection connection, Statement statement) {
+    if (statement != null) {
+      try {
+        statement.close();
+      } catch (SQLException e) {
+        // ignore
+      }
+    }
+    if (connection != null) {
+      try {
+        connection.close();
+      } catch (SQLException e) {
+        // ignore
+      }
     }
   }
 }

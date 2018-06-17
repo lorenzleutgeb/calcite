@@ -16,7 +16,6 @@
  */
 package org.apache.calcite.adapter.openapi;
 
-import com.google.common.collect.ImmutableList;
 import io.swagger.models.Model;
 import io.swagger.models.Operation;
 import io.swagger.models.Path;
@@ -40,6 +39,7 @@ import org.apache.calcite.sql.SqlKind;
 import org.apache.calcite.util.Pair;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -132,7 +132,7 @@ public class OpenAPITable extends AbstractTable implements FilterableTable {
       return false;
     }
     assert filter instanceof RexCall;
-    final ImmutableList<RexNode> operands = ((RexCall) filter).operands;
+    final List<RexNode> operands = Collections.unmodifiableList(((RexCall) filter).operands);
     // only simple where clauses are handled
     if (operands.size() != 2) {
       return false;
