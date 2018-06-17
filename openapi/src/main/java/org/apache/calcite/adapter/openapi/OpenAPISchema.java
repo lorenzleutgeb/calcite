@@ -17,8 +17,8 @@
 package org.apache.calcite.adapter.openapi;
 
 import com.google.common.collect.ImmutableMap;
-import io.swagger.models.Swagger;
-import io.swagger.parser.SwaggerParser;
+import io.swagger.v3.oas.models.OpenAPI;
+import io.swagger.v3.parser.OpenAPIV3Parser;
 import org.apache.calcite.schema.Table;
 import org.apache.calcite.schema.impl.AbstractSchema;
 
@@ -29,13 +29,13 @@ import java.util.Map;
  * OpenAPI Schema
  */
 public class OpenAPISchema extends AbstractSchema {
-  private final Swagger swagger;
+  private final OpenAPI swagger;
   private Map<String, Table> tableMap;
 
   public OpenAPISchema(String schemaURL) {
     super();
     final File schemaFile = Cache.getFile(schemaURL);
-    this.swagger = new SwaggerParser().read(schemaFile.toString());
+    this.swagger = new OpenAPIV3Parser().read(schemaFile.toString());
     if (swagger == null) {
       throw new RuntimeException("Swagger could not parse schema file " + schemaFile.toString());
     }
@@ -50,7 +50,7 @@ public class OpenAPISchema extends AbstractSchema {
 
   private Map<String, Table> createTableMap() {
     final ImmutableMap.Builder<String, Table> builder = ImmutableMap.builder();
-    swagger.getDefinitions().keySet().forEach(
+    swagger.getComponents().getSchemas().keySet().forEach(
         name -> builder.put(name, new OpenAPITable(swagger, name))
     );
     return builder.build();

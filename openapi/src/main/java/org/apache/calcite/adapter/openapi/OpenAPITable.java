@@ -16,12 +16,11 @@
  */
 package org.apache.calcite.adapter.openapi;
 
-import io.swagger.models.Model;
-import io.swagger.models.Operation;
-import io.swagger.models.Path;
-import io.swagger.models.Swagger;
-import io.swagger.models.parameters.Parameter;
-import io.swagger.models.properties.Property;
+import io.swagger.v3.oas.models.OpenAPI;
+import io.swagger.v3.oas.models.Operation;
+import io.swagger.v3.oas.models.PathItem;
+import io.swagger.v3.oas.models.media.Schema;
+import io.swagger.v3.oas.models.parameters.Parameter;
 import org.apache.calcite.DataContext;
 import org.apache.calcite.adapter.java.JavaTypeFactory;
 import org.apache.calcite.linq4j.AbstractEnumerable;
@@ -50,35 +49,59 @@ import java.util.stream.IntStream;
 /**
  * Wraps OpenAPI result sets as tables.
  */
-public class OpenAPITable extends AbstractTable implements FilterableTable {
-  private final Swagger swagger;
+public class OpenAPITable<T> extends AbstractTable implements FilterableTable {
+  private static final String REFERENCE_PREFIX = "#/components/schemas/";
+
+  private final OpenAPI api;
   private final String entity;
-  private final Model entityModel;
+  private final Schema entityModel;
   private final ArrayList<String> order;
   private String sourceURL;
-  private Map.Entry<String, Path> sourcePath;
+  private Map.Entry<String, PathItem> sourcePath;
 
-  public OpenAPITable(Swagger swagger, String entity) {
-    this.swagger = swagger;
+  public OpenAPITable(OpenAPI api, String entity) {
+    this.api = api;
     this.sourceURL = null;
     this.sourcePath = null;
     this.entity = entity;
-    this.entityModel = this.swagger.getDefinitions().get(this.entity);
-    final Map<String, Property> properties = this.entityModel.getProperties();
+    this.entityModel = this.api.getComponents().getSchemas().get(this.entity);
+
+    @SuppressWarnings("unchecked")
+    final Map<String, Schema> properties = (Map<String, Schema>) this.entityModel.getProperties();
+
     order = properties.keySet().stream().sorted().collect(Collectors.toCollection(ArrayList::new));
   }
 
   @Override public RelDataType getRowType(RelDataTypeFactory typeFactory) {
     final JavaTypeFactory jtypeFactory = (JavaTypeFactory) typeFactory;
+
     final List<String> fieldNames = new ArrayList<>();
     final List<RelDataType> types = new ArrayList<>();
-    for (int i = 0; i < order.size(); i++) {
-      String fieldName = order.get(i);
+    for (String fieldName : order) {
       fieldNames.add(fieldName);
+      Schema property = (Schema) entityModel.getProperties().get(fieldName);
+      String typeString = property.getType();
 
-      final String typeString = entityModel.getProperties().get(fieldName).getType();
+      if (typeString == null) {
+        final String ref = property.get$ref();
+        if (ref.startsWith(REFERENCE_PREFIX)) {
+
+          property = api.getComponents().getSchemas()
+              .get(ref.substring(REFERENCE_PREFIX.length()));
+
+          if (property == null) {
+            throw new RuntimeException("ERROR: Unable to resolve reference: "
+                + ref + " for column: " + fieldName);
+          }
+          typeString = property.getType();
+        } else {
+          throw new RuntimeException("ERROR: Unable to resolve reference: "
+              + ref + " for column: " + fieldName
+              + ". This is not your fault, the implementation is incomplete!");
+        }
+      }
+
       final OpenAPIFieldType fieldType = OpenAPIFieldType.of(typeString);
-      final RelDataType type;
       if (fieldType == null) {
         throw new RuntimeException("ERROR: Found unknown type: "
           + typeString + " for column: " + fieldName);
@@ -99,7 +122,7 @@ public class OpenAPITable extends AbstractTable implements FilterableTable {
       ok = findSourcePath(firstFilter);
     } else if (firstFilter.isA(SqlKind.AND)) {
       count = ((RexCall) firstFilter).operands.stream()
-          .filter(filter -> findSourcePath(filter))
+          .filter(this::findSourcePath)
           .count();
       ok = count == 1;
     } else {
@@ -150,7 +173,7 @@ public class OpenAPITable extends AbstractTable implements FilterableTable {
     String value = encode((RexLiteral) inputNode);
     int columnIndex = ((RexInputRef) columnNode).getIndex();
     String columnName = order.get(columnIndex);
-    final Optional<Map.Entry<String, Path>> optionalPathEntry = swagger.getPaths().entrySet()
+    final Optional<Map.Entry<String, PathItem>> optionalPathEntry = api.getPaths().entrySet()
         .stream()
         .filter(entry -> {
           final Operation get = entry.getValue().getGet();
@@ -176,7 +199,7 @@ public class OpenAPITable extends AbstractTable implements FilterableTable {
 //            throw new RuntimeException("Column \"" + columnName + "\" not mapped to any path");
       return false;
     }
-    final Map.Entry<String, Path> pathEntry = optionalPathEntry.get();
+    final Map.Entry<String, PathItem> pathEntry = optionalPathEntry.get();
     sourcePath = optionalPathEntry.get();
     String parameterName = sourcePath.getValue().getGet().getParameters().get(0).getName();
     String parameter = String.format("{%s}", parameterName);
@@ -200,13 +223,8 @@ public class OpenAPITable extends AbstractTable implements FilterableTable {
     return asString;
   }
 
-  boolean isLocalFile() {
-    return swagger.getSchemes() == null;
-  }
-
   String url(String path) {
-    final String prefix = isLocalFile() ? "" : String.format("%s://", swagger.getSchemes().get(0));
-    return prefix + swagger.getHost() + swagger.getBasePath() + path;
+    return api.getServers().get(0).getUrl();
   }
 
   private String lowerCaseFirst(String s) {

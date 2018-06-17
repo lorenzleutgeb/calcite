@@ -80,10 +80,10 @@ public class OpenAPITest {
     final CalciteConnection calciteConnection = connection.unwrap(
         CalciteConnection.class);
 
-    final Schema testSchema = new OpenAPISchema("src/test/resources/openapi/schema.json");
+    final Schema testSchema = new OpenAPISchema("src/test/resources/openapi/rainbow.yaml");
     calciteConnection.getRootSchema().add("Test", testSchema);
 
-    final Schema petStoreSchema = new OpenAPISchema("http://petstore.swagger.io/v2/swagger.json");
+    final Schema petStoreSchema = new OpenAPISchema("src/test/resources/openapi/petstore.yaml");
     calciteConnection.getRootSchema().add("PetStore", petStoreSchema);
 
     statement = connection.createStatement();

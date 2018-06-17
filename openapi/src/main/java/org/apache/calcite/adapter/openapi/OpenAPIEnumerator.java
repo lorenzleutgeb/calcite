@@ -18,11 +18,11 @@ package org.apache.calcite.adapter.openapi;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import io.swagger.models.ArrayModel;
-import io.swagger.models.Model;
-import io.swagger.models.Operation;
-import io.swagger.models.Path;
-import io.swagger.models.properties.Property;
-import io.swagger.util.Json;
+import io.swagger.v3.core.util.Json;
+import io.swagger.v3.oas.models.Operation;
+import io.swagger.v3.oas.models.PathItem;
+import io.swagger.v3.oas.models.media.Content;
+import io.swagger.v3.oas.models.media.Schema;
 import org.apache.calcite.linq4j.Enumerator;
 import org.apache.calcite.util.Source;
 import org.apache.calcite.util.Sources;
@@ -37,11 +37,11 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * @param <E> Some generic parameter.
  */
 class OpenAPIEnumerator<E> implements Enumerator<E> {
-  private final Model entityModel;
+  private final Schema entityModel;
   private final List<String> order;
   private final int[] fields;
   private final RowConverter<E> rowConverter;
-  private final Map.Entry<String, Path> sourcePath;
+  private final Map.Entry<String, PathItem> sourcePath;
 
   private JsonNode root;
   private int rootIndex;
@@ -50,10 +50,10 @@ class OpenAPIEnumerator<E> implements Enumerator<E> {
   OpenAPIEnumerator(
       String sourceURL,
       AtomicBoolean cancelFlag,
-      Model entityModel,
+      Schema entityModel,
       List<String> order,
       int[] fields,
-      Map.Entry<String, Path> sourcePath
+      Map.Entry<String, PathItem> sourcePath
   ) {
     this.entityModel = entityModel;
     this.order = order;
@@ -81,23 +81,26 @@ class OpenAPIEnumerator<E> implements Enumerator<E> {
 
   @Override public boolean moveNext() {
     final Operation get = sourcePath.getValue().getGet();
-    if (get.getResponses().get("200").getResponseSchema() instanceof ArrayModel) {
-      if (rootIndex == root.size()) {
-        current = null;
-        return false;
-      }
-      JsonNode currentNode = root.get(rootIndex++);
-      current = rowConverter.convertRow(currentNode);
-      return true;
-    } else {
-      // assume it is a single object
-      if (rootIndex == 0) {
-        current = rowConverter.convertRow(root);
-        rootIndex = 1;
-        return true;
-      }
-      return false;
-    }
+    Content content = get.getResponses().get("200").getContent();
+    return false;
+    // TODO: This broke when moving to Swagger v3, bring it back somehow...
+    //if (content instanceof ArrayModel) {
+    //  if (rootIndex == root.size()) {
+    //    current = null;
+    //    return false;
+    //  }
+    //  JsonNode currentNode = root.get(rootIndex++);
+    //  current = rowConverter.convertRow(currentNode);
+    //  return true;
+    //} else {
+    //  // assume it is a single object
+    //  if (rootIndex == 0) {
+    //    current = rowConverter.convertRow(root);
+    //    rootIndex = 1;
+    //    return true;
+    //  }
+    //  return false;
+    //}
   }
 
   public void reset() {
@@ -145,11 +148,11 @@ class OpenAPIEnumerator<E> implements Enumerator<E> {
    * Array row converter.
    */
   static class ArrayRowConverter extends RowConverter<Object[]> {
-    private final Model entityModel;
+    private final Schema entityModel;
     private final List<String> order;
     private final int[] fields;
 
-    ArrayRowConverter(Model entityModel, List<String> order, int[] fields) {
+    ArrayRowConverter(Schema entityModel, List<String> order, int[] fields) {
       this.entityModel = entityModel;
       this.order = order;
       this.fields = fields;
@@ -161,7 +164,7 @@ class OpenAPIEnumerator<E> implements Enumerator<E> {
       for (int i = 0; i < fields.length; i++) {
         int field = fields[i];
         String fieldName = order.get(field);
-        final Property property = entityModel.getProperties().get(fieldName);
+        final Schema property = ((Schema) entityModel.getProperties().get(fieldName));
         final OpenAPIFieldType type = OpenAPIFieldType.of(property.getType());
         objects[i] = convert(type, currentNode.get(fieldName));
       }

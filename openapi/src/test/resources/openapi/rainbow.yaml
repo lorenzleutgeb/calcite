@@ -1,0 +1,46 @@
+openapi: 3.0.0
+servers:
+  - url: src/test/resources/openapi/
+paths:
+  '/rainbow/{id}.json':
+    get:
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/Rainbow'
+  '/rainbow/string_{a_string}.json':
+    get:
+      parameters:
+        - in: path
+          name: a_string
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/Rainbow'
+info:
+  version: ''
+  title: ''
+components:
+  schemas:
+    Rainbow:
+      type: object
+      properties:
+        a_string:
+          type: string
+        id:
+          type: integer

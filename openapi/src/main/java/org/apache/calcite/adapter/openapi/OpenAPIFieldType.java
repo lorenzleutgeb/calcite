@@ -39,7 +39,7 @@ enum OpenAPIFieldType {
 //    PASSWORD(String.class, "string"),
 
   ARRAY(java.sql.Array.class, "array"),
-  OBJECT(java.lang.Object.class, "ref");
+  OBJECT(java.lang.Object.class, "object");
 
   private static final Map<String, OpenAPIFieldType> MAP = new HashMap<>();
 
