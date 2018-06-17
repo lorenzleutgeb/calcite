@@ -8,20 +8,20 @@ import io.swagger.v3.parser.OpenAPIV3Parser;
 import java.util.Map;
 
 public class Foo {
-	public static void main(String[] args) {
-		OpenAPI openAPI;
-		openAPI = new OpenAPIV3Parser().read("/home/lorenz/Downloads/github.yaml");
+  public static void main(String[] args) {
+    OpenAPI openAPI;
+    openAPI = new OpenAPIV3Parser().read("/home/lorenz/Downloads/github.yaml");
 
-		System.out.println(openAPI);
+    System.out.println(openAPI);
 
-		for (Map.Entry<String, PathItem> e : openAPI.getPaths().entrySet()) {
-			final PathItem pi = e.getValue();
-			pi.getGet().getRequestBody()
-			System.out.println("Got path " + e.getKey() + " with " + e.getValue());
-		}
+    for (Map.Entry<String, PathItem> e : openAPI.getPaths().entrySet()) {
+      final PathItem pi = e.getValue();
+      pi.getGet().getRequestBody();
+      System.out.println("Got path " + e.getKey() + " with " + e.getValue());
+    }
 
-		for (Map.Entry<String, Schema> e : openAPI.getComponents().getSchemas().entrySet()) {
-			System.out.println("Got schema: " + e.getKey() + " with title " + e.getValue().getTitle());
-		}
-	}
+    for (Map.Entry<String, Schema> e : openAPI.getComponents().getSchemas().entrySet()) {
+      System.out.println("Got schema: " + e.getKey() + " with title " + e.getValue().getTitle());
+    }
+  }
 }

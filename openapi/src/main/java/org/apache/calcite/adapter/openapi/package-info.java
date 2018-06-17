@@ -18,7 +18,6 @@
 /**
  * Calcite query provider that reads from JSON documents. Their schema is given
  * as an OpenAPI 3.0 schema description.
- *
  */
 @PackageMarker
 package org.apache.calcite.adapter.openapi;

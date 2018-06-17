@@ -23,51 +23,53 @@ import org.apache.calcite.rel.type.RelDataType;
 import java.util.HashMap;
 import java.util.Map;
 
-// see https://github.com/OAI/OpenAPI-Specification/blob/master/versions/3.0.0.md#dataTypes
+/**
+ * @link https://github.com/OAI/OpenAPI-Specification/blob/master/versions/3.0.0.md#dataTypes
+ */
 enum OpenAPIFieldType {
-    INTEGER(java.lang.Integer.class, "integer"),
-//    LONG(java.lang.Integer, "integer"),
-    FLOAT(java.lang.Float.class, "number"),
-    DOUBLE(java.lang.Double.class, "double"),
-    STRING(String.class, "string"),
-    BOOLEAN(Primitive.BOOLEAN),
-//    BYTE(java.lang.Byte.class, "string"),
+  INTEGER(java.lang.Integer.class, "integer"),
+  //    LONG(java.lang.Integer, "integer"),
+  FLOAT(java.lang.Float.class, "number"),
+  DOUBLE(java.lang.Double.class, "double"),
+  STRING(String.class, "string"),
+  BOOLEAN(Primitive.BOOLEAN),
+  //    BYTE(java.lang.Byte.class, "string"),
 //    DATE(java.sql.Date.class, "date"),
-    DATETIME(java.sql.Timestamp.class, "date"),
+  DATETIME(java.sql.Timestamp.class, "date"),
 //    PASSWORD(String.class, "string"),
 
-    ARRAY(java.sql.Array.class, "array"),
-    OBJECT(java.lang.Object.class, "ref");
+  ARRAY(java.sql.Array.class, "array"),
+  OBJECT(java.lang.Object.class, "ref");
 
-    private final Class clazz;
-    private final String simpleName;
+  private static final Map<String, OpenAPIFieldType> MAP = new HashMap<>();
 
-    private static final Map<String, OpenAPIFieldType> MAP = new HashMap<>();
-
-    static {
-        for (OpenAPIFieldType value : values()) {
-            MAP.put(value.simpleName, value);
-        }
+  static {
+    for (OpenAPIFieldType value : values()) {
+      MAP.put(value.simpleName, value);
     }
+  }
 
-    OpenAPIFieldType(Primitive primitive) {
-        this(primitive.boxClass, primitive.primitiveClass.getSimpleName());
-    }
+  private final Class clazz;
+  private final String simpleName;
 
-    OpenAPIFieldType(Class clazz, String simpleName) {
-        this.clazz = clazz;
-        this.simpleName = simpleName;
-    }
+  OpenAPIFieldType(Primitive primitive) {
+    this(primitive.boxClass, primitive.primitiveClass.getSimpleName());
+  }
 
-    public RelDataType toType(JavaTypeFactory typeFactory) {
-        RelDataType javaType = typeFactory.createJavaType(clazz);
-        RelDataType sqlType = typeFactory.createSqlType(javaType.getSqlTypeName());
-        return typeFactory.createTypeWithNullability(sqlType, true);
-    }
+  OpenAPIFieldType(Class clazz, String simpleName) {
+    this.clazz = clazz;
+    this.simpleName = simpleName;
+  }
 
-    public static OpenAPIFieldType of(String typeString) {
-        return MAP.get(typeString);
-    }
+  public static OpenAPIFieldType of(String typeString) {
+    return MAP.get(typeString);
+  }
+
+  public RelDataType toType(JavaTypeFactory typeFactory) {
+    RelDataType javaType = typeFactory.createJavaType(clazz);
+    RelDataType sqlType = typeFactory.createSqlType(javaType.getSqlTypeName());
+    return typeFactory.createTypeWithNullability(sqlType, true);
+  }
 }
 
 // End OpenAPIFieldType.java

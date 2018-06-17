@@ -1,139 +1,168 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.
+ * The ASF licenses this file to you under the Apache License, Version 2.0
+ * (the "License"); you may not use this file except in compliance with
+ * the License.  You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package org.apache.calcite.adapter.openapi;
 
 import junit.framework.TestCase;
-import org.apache.calcite.jdbc.CalciteConnection;
-import org.apache.calcite.schema.Schema;
-import org.apache.calcite.util.Util;
-import org.junit.Assert;
-import org.junit.Test;
 
-import java.sql.*;
+import org.junit.Test;
+import org.junit.Assert;
+
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Properties;
 import java.util.stream.Collectors;
 
+/**
+ * Tests for the OpenAPI adapter.
+ */
 public class OpenAPITest extends TestCase {
 
-    Connection connection;
-    Statement statement;
+  Connection connection;
+  Statement statement;
 
-    @Override
-    protected void setUp() throws SQLException {
-        final Properties properties = new Properties();
-        connection = DriverManager.getConnection("jdbc:calcite:", properties);
-        final CalciteConnection calciteConnection = connection.unwrap(
-                CalciteConnection.class);
-
-        final Schema testSchema = new OpenAPISchema("src/test/resources/openapi/schema.json");
-        calciteConnection.getRootSchema().add("Test", testSchema);
-
-        final Schema petStoreSchema = new OpenAPISchema("http://petstore.swagger.io/v2/swagger.json");
-        calciteConnection.getRootSchema().add("PetStore", petStoreSchema);
-
-        statement = connection.createStatement();
+  private static int count(ResultSet resultSet) throws SQLException {
+    int count = 0;
+    while (resultSet.next()) {
+      count++;
     }
+    return count;
+  }
 
-    @Override
-    protected void tearDown() throws SQLException {
-        connection.close();
+  private static String collect(ResultSet resultSet)
+      throws SQLException {
+    List<String> result = new ArrayList<String>();
+    final StringBuilder buf = new StringBuilder();
+    while (resultSet.next()) {
+      buf.setLength(0);
+      int n = resultSet.getMetaData().getColumnCount();
+      String sep = "";
+      for (int i = 1; i <= n; i++) {
+        buf.append(sep)
+            .append(resultSet.getMetaData().getColumnLabel(i))
+            .append("=")
+            .append(resultSet.getString(i));
+        sep = "; ";
+      }
+      result.add(Util.toLinux(buf.toString()));
     }
+    return result.stream().collect(Collectors.joining(", "));
+  }
 
-    @Test
-    public void testQueryByInt() throws SQLException {
-            final String sql = "select \"id\" from \"Test\".\"Rainbow\" where \"id\" = 0";
-            final String results = collect(statement.executeQuery(sql));
-            Assert.assertEquals("id=0", results);
-    }
+  @Override protected void setUp() throws SQLException {
+    final Properties properties = new Properties();
+    connection = DriverManager.getConnection("jdbc:calcite:", properties);
+    final CalciteConnection calciteConnection = connection.unwrap(
+        CalciteConnection.class);
 
-    @Test
-    public void testQueryByString() throws SQLException {
-        final String sql = "select \"id\" from \"Test\".\"Rainbow\" where \"a_string\" = 'str'";
-        final String results = collect(statement.executeQuery(sql));
-        Assert.assertEquals("id=0", results);
-    }
+    final Schema testSchema = new OpenAPISchema("src/test/resources/openapi/schema.json");
+    calciteConnection.getRootSchema().add("Test", testSchema);
 
-    @Test
-    public void testSimple() throws SQLException {
-        final String sql = "select * from \"PetStore\".\"Pet\" where \"status\" = 'available'";
-        final ResultSet resultSet = statement.executeQuery(sql);
-        int rows = count(resultSet);
-        Assert.assertEquals(true, rows > 0);
-    }
+    final Schema petStoreSchema = new OpenAPISchema("http://petstore.swagger.io/v2/swagger.json");
+    calciteConnection.getRootSchema().add("PetStore", petStoreSchema);
 
-    @Test
-    public void testAnd() throws SQLException {
-        final String sql = "select * from \"PetStore\".\"Pet\" where \"status\" = 'pending' AND \"name\" = 'Wayne'";
-        final String results = collect(statement.executeQuery(sql));
-//        Assert.assertEquals("category=null; id=5092; name=Wayne; photoUrls=[\"1\"]; status=pending; tags=[null]", results);
-        Assert.assertEquals("", results);
-    }
+    statement = connection.createStatement();
+  }
 
-    @Test
-    public void testIsNull() throws SQLException {
-        final String sql = "select * from \"PetStore\".\"Pet\" where \"status\" = 'pending' AND \"name\" is null";
-        final String results = collect(statement.executeQuery(sql));
-        Assert.assertEquals("", results);
-    }
+  @Override protected void tearDown() throws SQLException {
+    connection.close();
+  }
 
-    @Test
-    public void testGetSingleObject() throws SQLException {
-        final String sql = "select \"id\", \"name\" from \"PetStore\".\"Pet\" where \"id\" = 109";
-        final String results = collect(statement.executeQuery(sql));
-        Assert.assertEquals("id=109; name=doggiepartha", results);
-    }
+  @Test
+  public void testQueryByInt() throws SQLException {
+    final String sql = "select \"id\" from \"Test\".\"Rainbow\" where \"id\" = 0";
+    final String results = collect(statement.executeQuery(sql));
+    Assert.assertEquals("id=0", results);
+  }
 
-    @Test
-    public void testUser() throws SQLException {
-        final String sql = "select \"userStatus\", \"username\" from \"PetStore\".\"User\" where \"username\" = 'user1'";
-        final String results = collect(statement.executeQuery(sql));
-        Assert.assertEquals("userStatus=0; username=user1", results);
-    }
+  @Test
+  public void testQueryByString() throws SQLException {
+    final String sql = "select \"id\" from \"Test\".\"Rainbow\" where \"a_string\" = 'str'";
+    final String results = collect(statement.executeQuery(sql));
+    Assert.assertEquals("id=0", results);
+  }
 
-    @Test
-    public void testInsert() {
-        final String sql = "insert into \"PetStore\".\"Pet\" (\"name\", \"photoUrls\") values (\"user\", null)";
-        try {
-            statement.executeQuery(sql);
-            Assert.fail();
-        } catch (SQLException e) {
-        }
-    }
+  @Test
+  public void testSimple() throws SQLException {
+    final String sql = "select * from \"PetStore\".\"Pet\" where \"status\" = 'available'";
+    final ResultSet resultSet = statement.executeQuery(sql);
+    int rows = count(resultSet);
+    Assert.assertEquals(true, rows > 0);
+  }
 
-    @Test
-    public void testUpdate() throws SQLException {
-        final String sql = "update \"PetStore\".\"User\" set \"userStatus\" = 2 where \"username\" = 'user1'";
-        try {
-            statement.executeQuery(sql);
-            Assert.fail();
-        } catch (SQLException e) {
-        }
-    }
+  @Test
+  public void testAnd() throws SQLException {
+    final String sql = "select * from \"PetStore\".\"Pet\" "
+        + "where \"status\" = 'pending' AND \"name\" = 'Wayne'";
+    final String results = collect(statement.executeQuery(sql));
+    //Assert.assertEquals("category=null; id=5092; name=Wayne; photoUrls=[\"1\"];"
+    // + " status=pending; tags=[null]", results);
+    Assert.assertEquals("", results);
+  }
 
-    private static int count(ResultSet resultSet) throws SQLException {
-        int count = 0;
-        while (resultSet.next())
-            count++;
-        return count;
-    }
+  @Test
+  public void testIsNull() throws SQLException {
+    final String sql = "select * from \"PetStore\".\"Pet\" "
+        + "where \"status\" = 'pending' AND \"name\" is null";
+    final String results = collect(statement.executeQuery(sql));
+    Assert.assertEquals("", results);
+  }
 
-    private static String collect(ResultSet resultSet)
-            throws SQLException {
-        List<String> result = new ArrayList<>();
-        final StringBuilder buf = new StringBuilder();
-        while (resultSet.next()) {
-            buf.setLength(0);
-            int n = resultSet.getMetaData().getColumnCount();
-            String sep = "";
-            for (int i = 1; i <= n; i++) {
-                buf.append(sep)
-                        .append(resultSet.getMetaData().getColumnLabel(i))
-                        .append("=")
-                        .append(resultSet.getString(i));
-                sep = "; ";
-            }
-            result.add(Util.toLinux(buf.toString()));
-        }
-        return result.stream().collect(Collectors.joining(", "));
+  @Test
+  public void testGetSingleObject() throws SQLException {
+    final String sql = "select \"id\", \"name\" from \"PetStore\".\"Pet\" "
+        + "where \"id\" = 109";
+    final String results = collect(statement.executeQuery(sql));
+    Assert.assertEquals("id=109; name=doggiepartha", results);
+  }
+
+  @Test
+  public void testUser() throws SQLException {
+    final String sql = "select \"userStatus\", \"username\" from \"PetStore\".\"User\" "
+        + "where \"username\" = 'user1'";
+    final String results = collect(statement.executeQuery(sql));
+    Assert.assertEquals("userStatus=0; username=user1", results);
+  }
+
+  @Test
+  public void testInsert() {
+    final String sql =
+        "insert into \"PetStore\".\"Pet\" (\"name\", \"photoUrls\") values (\"user\", null)";
+    try {
+      statement.executeQuery(sql);
+      Assert.fail();
+    } catch (SQLException e) {
     }
+  }
+
+  @Test
+  public void testUpdate() throws SQLException {
+    final String sql = "update \"PetStore\".\"User\" set \"userStatus\" = 2 where "
+        + "\"username\" = 'user1'";
+    try {
+      statement.executeQuery(sql);
+      Assert.fail();
+    } catch (SQLException e) {
+    }
+  }
 }
+
+// End OpenAPITest.java

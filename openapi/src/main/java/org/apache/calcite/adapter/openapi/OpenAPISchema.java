@@ -25,33 +25,36 @@ import org.apache.calcite.schema.impl.AbstractSchema;
 import java.io.File;
 import java.util.Map;
 
+/**
+ * OpenAPI Schema
+ */
 public class OpenAPISchema extends AbstractSchema {
-    private final Swagger swagger;
-    private Map<String, Table> tableMap;
+  private final Swagger swagger;
+  private Map<String, Table> tableMap;
 
-    public OpenAPISchema(String schemaURL) {
-        super();
-        final File schemaFile = Cache.getFile(schemaURL);
-        this.swagger = new SwaggerParser().read(schemaFile.toString());
-        if (swagger == null)
-            throw new RuntimeException("Swagger could not parse schema file " + schemaFile.toString());
+  public OpenAPISchema(String schemaURL) {
+    super();
+    final File schemaFile = Cache.getFile(schemaURL);
+    this.swagger = new SwaggerParser().read(schemaFile.toString());
+    if (swagger == null) {
+      throw new RuntimeException("Swagger could not parse schema file " + schemaFile.toString());
     }
+  }
 
-    @Override
-    protected Map<String, Table> getTableMap() {
-        if (tableMap == null) {
-            tableMap = createTableMap();
-        }
-        return tableMap;
+  @Override protected Map<String, Table> getTableMap() {
+    if (tableMap == null) {
+      tableMap = createTableMap();
     }
+    return tableMap;
+  }
 
-    private Map<String, Table> createTableMap() {
-        final ImmutableMap.Builder<String, Table> builder = ImmutableMap.builder();
-        swagger.getDefinitions().keySet().forEach(
-                name -> builder.put(name, new OpenAPITable(swagger, name))
-        );
-        return builder.build();
-    }
+  private Map<String, Table> createTableMap() {
+    final ImmutableMap.Builder<String, Table> builder = ImmutableMap.builder();
+    swagger.getDefinitions().keySet().forEach(
+        name -> builder.put(name, new OpenAPITable(swagger, name))
+    );
+    return builder.build();
+  }
 }
 
 // End OpenAPISchema.java

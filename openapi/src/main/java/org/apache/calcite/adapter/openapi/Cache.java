@@ -27,36 +27,40 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.regex.Pattern;
 
+/**
+ * A cache for OpenAPI responses.
+ */
 public class Cache {
+  protected Cache() {}
 
-    public static File getFile(String url) {
-        final String cacheName = "cache";
-        final Pattern schemePattern = Pattern.compile("(https?|wss?|HTTPS?|WSS?):.*");
-        if (!schemePattern.matcher(url).matches()) {
-            return new File(url);
-        }
-        final File cacheDir = new File(cacheName);
-        if (!cacheDir.exists()) {
-            boolean ok = cacheDir.mkdir();
-            assert(ok);
-        }
-        String target = null;
-        try {
-            target = URLEncoder.encode(url, "ISO-8859-1");
-        } catch (UnsupportedEncodingException e) {
-            e.printStackTrace();
-        }
-        final Path path = Paths.get(cacheName, target);
-        final File file = path.toFile();
-        if (!file.exists()) {
-            try {
-                FileUtils.copyURLToFile(new URL(url), file);
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-        }
-        return file;
+  public static File getFile(String url) {
+    final String cacheName = "cache";
+    final Pattern schemePattern = Pattern.compile("(https?|wss?|HTTPS?|WSS?):.*");
+    if (!schemePattern.matcher(url).matches()) {
+      return new File(url);
     }
+    final File cacheDir = new File(cacheName);
+    if (!cacheDir.exists()) {
+      boolean ok = cacheDir.mkdir();
+      assert ok;
+    }
+    String target = null;
+    try {
+      target = URLEncoder.encode(url, "ISO-8859-1");
+    } catch (UnsupportedEncodingException e) {
+      e.printStackTrace();
+    }
+    final Path path = Paths.get(cacheName, target);
+    final File file = path.toFile();
+    if (!file.exists()) {
+      try {
+        FileUtils.copyURLToFile(new URL(url), file);
+      } catch (IOException e) {
+        e.printStackTrace();
+      }
+    }
+    return file;
+  }
 }
 
 // End Cache.java
