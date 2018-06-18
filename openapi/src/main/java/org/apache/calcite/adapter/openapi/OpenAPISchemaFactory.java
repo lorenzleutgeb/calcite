@@ -35,6 +35,15 @@ import java.util.Map;
 @SuppressWarnings("UnusedDeclaration")
 public class OpenAPISchemaFactory implements SchemaFactory {
 
+  static {
+    // TODO: Remove this once the issue is settled upstream.
+    System.err.println(
+        "NOTE: In case you are seeing a warning about illegal reflective access in "
+            + "com.google.protobuf.UnsafeUtil please refer to "
+            + "https://github.com/google/protobuf/issues/3781"
+    );
+  }
+
   public OpenAPISchemaFactory() {
   }
 
