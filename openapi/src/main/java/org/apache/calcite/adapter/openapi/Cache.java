@@ -34,7 +34,7 @@ import java.util.regex.Pattern;
 public class Cache {
   protected Cache() {}
 
-  static File getFile(String url) {
+  static File getFile(String url) throws IOException {
     final String cacheName = "cache";
     final Pattern schemePattern = Pattern.compile("(https?|wss?|HTTPS?|WSS?):.*");
     if (!schemePattern.matcher(url).matches()) {
@@ -55,11 +55,7 @@ public class Cache {
     final Path path = Paths.get(cacheName, target);
     final File file = path.toFile();
     if (!file.exists()) {
-      try {
-        FileUtils.copyURLToFile(new URL(url), file);
-      } catch (IOException e) {
-        e.printStackTrace();
-      }
+      FileUtils.copyURLToFile(new URL(url), file);
     }
     return file;
   }

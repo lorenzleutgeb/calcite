@@ -90,6 +90,10 @@ class OpenAPIEnumerator implements Enumerator<Object[]> {
       );
     }
 
+    if (root == null) {
+      return false;
+    }
+
     Schema schema = mediaType.getSchema();
     if (schema instanceof ArraySchema) {
       if (rootIndex == root.size()) {

@@ -25,6 +25,7 @@ import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.parser.OpenAPIV3Parser;
 
 import java.io.File;
+import java.io.IOException;
 import java.util.Map;
 
 /**
@@ -36,7 +37,12 @@ public class OpenAPISchema extends AbstractSchema {
 
   public OpenAPISchema(String schemaURL) {
     super();
-    final File schemaFile = Cache.getFile(schemaURL);
+    final File schemaFile;
+    try {
+      schemaFile = Cache.getFile(schemaURL);
+    } catch (IOException e) {
+      throw new RuntimeException("Could not read OpenAPI specification!", e);
+    }
     this.swagger = new OpenAPIV3Parser().read(schemaFile.toString());
     if (swagger == null) {
       throw new RuntimeException("Swagger could not parse schema file " + schemaFile.toString());
