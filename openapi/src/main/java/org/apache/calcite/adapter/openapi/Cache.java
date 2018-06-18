@@ -24,40 +24,43 @@ import java.io.UnsupportedEncodingException;
 import java.net.URL;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.regex.Pattern;
 
 /**
  * A cache for OpenAPI responses.
  */
 public class Cache {
+  private static Path tempDirectory;
+
+  static {
+    try {
+      tempDirectory = Files.createTempDirectory("calcite-openapi");
+    } catch (IOException e) {
+      throw new RuntimeException(e);
+    }
+  }
+
   protected Cache() {}
 
   static File getFile(String url) throws IOException {
-    final String cacheName = "cache";
     final Pattern schemePattern = Pattern.compile("(https?|wss?|HTTPS?|WSS?):.*");
     if (!schemePattern.matcher(url).matches()) {
       return new File(url);
     }
 
-    final File cacheDir = new File(cacheName);
-    if (!cacheDir.exists()) {
-      cacheDir.mkdir();
-    }
-
-    String target = null;
+    String target;
     try {
       target = URLEncoder.encode(url, StandardCharsets.UTF_8.name());
     } catch (UnsupportedEncodingException e) {
-      e.printStackTrace();
+      throw new RuntimeException(e);
     }
-    final Path path = Paths.get(cacheName, target);
-    final File file = path.toFile();
-    if (!file.exists()) {
-      FileUtils.copyURLToFile(new URL(url), file);
+    final Path path = tempDirectory.resolve(target);
+    if (!Files.exists(path)) {
+      FileUtils.copyURLToFile(new URL(url), path.toFile());
     }
-    return file;
+    return path.toFile();
   }
 }
 
