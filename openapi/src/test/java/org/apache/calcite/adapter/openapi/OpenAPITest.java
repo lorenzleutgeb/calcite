@@ -121,7 +121,7 @@ public class OpenAPITest {
 
   @Test
   public void testEmpty() throws SQLException {
-    final String sql = "select * from \"PetStore\".\"Pet\" where \"id\" = 1000";
+    final String sql = "select * from \"PetStore\".\"Pet\" where \"id\" = 21798122";
     final ResultSet resultSet = statement.executeQuery(sql);
     int rows = count(resultSet);
     Assert.assertEquals(false, rows > 0);
