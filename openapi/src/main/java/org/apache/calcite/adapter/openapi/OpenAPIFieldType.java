@@ -28,16 +28,15 @@ import java.util.Map;
  */
 enum OpenAPIFieldType {
   INTEGER(java.lang.Integer.class, "integer"),
-  //    LONG(java.lang.Integer, "integer"),
+  //LONG(java.lang.Integer, "integer"),
   FLOAT(java.lang.Float.class, "number"),
   DOUBLE(java.lang.Double.class, "double"),
   STRING(String.class, "string"),
   BOOLEAN(Primitive.BOOLEAN),
-  //    BYTE(java.lang.Byte.class, "string"),
-//    DATE(java.sql.Date.class, "date"),
+  //BYTE(java.lang.Byte.class, "string"),
+  //DATE(java.sql.Date.class, "date"),
   DATETIME(java.sql.Timestamp.class, "date"),
-//    PASSWORD(String.class, "string"),
-
+  //PASSWORD(String.class, "string"),
   ARRAY(java.sql.Array.class, "array"),
   OBJECT(java.lang.Object.class, "object");
 

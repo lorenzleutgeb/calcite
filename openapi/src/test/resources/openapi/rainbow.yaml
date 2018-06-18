@@ -14,7 +14,7 @@ paths:
         '200':
           description: OK
           content:
-            '*/*':
+            'application/json':
               schema:
                 $ref: '#/components/schemas/Rainbow'
   '/rainbow/string_{a_string}.json':
@@ -29,7 +29,7 @@ paths:
         '200':
           description: OK
           content:
-            '*/*':
+            'application/json':
               schema:
                 $ref: '#/components/schemas/Rainbow'
 info:

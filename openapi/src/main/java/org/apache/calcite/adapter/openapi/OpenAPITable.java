@@ -21,6 +21,7 @@ import io.swagger.v3.oas.models.Operation;
 import io.swagger.v3.oas.models.PathItem;
 import io.swagger.v3.oas.models.media.Schema;
 import io.swagger.v3.oas.models.parameters.Parameter;
+import io.swagger.v3.oas.models.servers.Server;
 import org.apache.calcite.DataContext;
 import org.apache.calcite.adapter.java.JavaTypeFactory;
 import org.apache.calcite.linq4j.AbstractEnumerable;
@@ -36,12 +37,14 @@ import org.apache.calcite.schema.FilterableTable;
 import org.apache.calcite.schema.impl.AbstractTable;
 import org.apache.calcite.sql.SqlKind;
 import org.apache.calcite.util.Pair;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
+import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -50,26 +53,23 @@ import java.util.stream.IntStream;
  * Wraps OpenAPI result sets as tables.
  */
 public class OpenAPITable<T> extends AbstractTable implements FilterableTable {
+  private static final Logger LOGGER = LoggerFactory.getLogger(OpenAPITable.class);
   private static final String REFERENCE_PREFIX = "#/components/schemas/";
 
   private final OpenAPI api;
-  private final String entity;
-  private final Schema entityModel;
-  private final ArrayList<String> order;
-  private String sourceURL;
-  private Map.Entry<String, PathItem> sourcePath;
+  private final String schemaKey;
+  private final Schema schema;
+  private final List<String> order;
 
-  public OpenAPITable(OpenAPI api, String entity) {
+  public OpenAPITable(OpenAPI api, String schemaKey) {
     this.api = api;
-    this.sourceURL = null;
-    this.sourcePath = null;
-    this.entity = entity;
-    this.entityModel = this.api.getComponents().getSchemas().get(this.entity);
+    this.schemaKey = schemaKey;
+    this.schema = this.api.getComponents().getSchemas().get(this.schemaKey);
 
     @SuppressWarnings("unchecked")
-    final Map<String, Schema> properties = (Map<String, Schema>) this.entityModel.getProperties();
+    final Map<String, Schema> properties = (Map<String, Schema>) this.schema.getProperties();
 
-    order = properties.keySet().stream().sorted().collect(Collectors.toCollection(ArrayList::new));
+    order = properties.keySet().stream().sorted().collect(Collectors.toList());
   }
 
   @Override public RelDataType getRowType(RelDataTypeFactory typeFactory) {
@@ -79,7 +79,7 @@ public class OpenAPITable<T> extends AbstractTable implements FilterableTable {
     final List<RelDataType> types = new ArrayList<>();
     for (String fieldName : order) {
       fieldNames.add(fieldName);
-      Schema property = (Schema) entityModel.getProperties().get(fieldName);
+      Schema property = (Schema) schema.getProperties().get(fieldName);
       String typeString = property.getType();
 
       if (typeString == null) {
@@ -115,121 +115,178 @@ public class OpenAPITable<T> extends AbstractTable implements FilterableTable {
     if (filters.size() == 0) {
       throw new UnsupportedOperationException("Where clause is required.");
     }
-    RexNode firstFilter = filters.get(0);
-    boolean ok;
-    long count = 0;
+
+    final RexNode firstFilter = filters.get(0);
+    String pathKey = null;
+    Map.Entry<Integer, String> mapping = null;
+
     if (firstFilter.isA(SqlKind.EQUALS)) {
-      ok = findSourcePath(firstFilter);
+      mapping = getMapping(firstFilter);
+      if (mapping != null) {
+        pathKey = matchPath(mapping.getKey());
+      }
     } else if (firstFilter.isA(SqlKind.AND)) {
-      count = ((RexCall) firstFilter).operands.stream()
-          .filter(this::findSourcePath)
-          .count();
-      ok = count == 1;
+      for (RexNode operand : ((RexCall) firstFilter).operands) {
+        Map.Entry<Integer, String> nextMapping = getMapping(operand);
+        if (nextMapping == null) {
+          continue;
+        }
+
+        String nextPathKey = matchPath(nextMapping.getKey());
+        if (nextPathKey == null) {
+          continue;
+        }
+
+        if (pathKey != null) {
+          throw new RuntimeException(
+              "Need exactly one filter that maps to an API path (have at least two)."
+          );
+        } else {
+          mapping = nextMapping;
+          pathKey = nextPathKey;
+        }
+      }
     } else {
       throw new RuntimeException("Where clause must be a single constraint or an AND.");
     }
-    if (!ok) {
-      throw new RuntimeException(
-          String.format("Need exactly one filter that maps to an API path (have %d).", count)
-      );
+
+    if (pathKey == null) {
+      throw new RuntimeException("No matching path found!");
     }
-    assert sourceURL != null;
+
+    final String url = parameterize(pathKey, mapping.getKey(), mapping.getValue());
+
     final int[] fields = IntStream.range(0, order.size()).toArray();
     final AtomicBoolean cancelFlag = DataContext.Variable.CANCEL_FLAG.get(root);
+    final Operation getOperation = api.getPaths().get(pathKey).getGet();
+
     return new AbstractEnumerable<Object[]>() {
       public Enumerator<Object[]> enumerator() {
         return new OpenAPIEnumerator<>(
-            sourceURL,
+            url,
             cancelFlag,
-            entityModel,
+            schema,
             order,
             fields,
-            sourcePath
+            getOperation
         );
       }
     };
   }
 
-  private boolean findSourcePath(RexNode filter) {
+  private Map.Entry<Integer, String> getMapping(RexNode filter) {
     if (!filter.isA(SqlKind.EQUALS)) {
-      return false;
+      LOGGER.warn("Invalid filter (need kind equals)");
+      return null;
     }
-    assert filter instanceof RexCall;
+
+    if (!(filter instanceof RexCall)) {
+      LOGGER.warn("Invalid filter (need RexCall)");
+      return null;
+    }
+
     final List<RexNode> operands = Collections.unmodifiableList(((RexCall) filter).operands);
-    // only simple where clauses are handled
+
+    // Only simple where clauses are handled
     if (operands.size() != 2) {
-      return false;
-    }
-    final RexNode columnNode = operands.get(0);
-    if (!(columnNode instanceof RexInputRef)) {
-//            throw new UnsupportedOperationException("Invalid filter (need column on lhs)");
-      return false;
-    }
-    final RexNode inputNode = operands.get(1);
-    if (!(inputNode instanceof RexLiteral)) {
-//            throw new UnsupportedOperationException("Invalid filter (need literal on rhs)");
-      return false;
-    }
-    String value = encode((RexLiteral) inputNode);
-    int columnIndex = ((RexInputRef) columnNode).getIndex();
-    String columnName = order.get(columnIndex);
-    final Optional<Map.Entry<String, PathItem>> optionalPathEntry = api.getPaths().entrySet()
-        .stream()
-        .filter(entry -> {
-          final Operation get = entry.getValue().getGet();
-          if (get == null) {
-            return false;
-          }
-          final List<Parameter> parameters = get.getParameters();
-          if (parameters == null || parameters.size() != 1) {
-            return false;
-          }
-          String parameterName = parameters.get(0).getName();
-          // FIXME: this is a heuristic that doesn't work for all APIs
-          // in queries like /pet/{petId}
-          // {petId} is mapped to "id" by removing the lowercased class name
-          String parameterNameWithoutClass = parameterName.startsWith(entity.toLowerCase())
-              ? lowerCaseFirst(parameterName.substring(entity.length()))
-              : "";
-          return parameterName.equals(columnName) || parameterNameWithoutClass.equals(columnName);
-        })
-        .findFirst();
-
-    if (!optionalPathEntry.isPresent()) {
-//            throw new RuntimeException("Column \"" + columnName + "\" not mapped to any path");
-      return false;
-    }
-    final Map.Entry<String, PathItem> pathEntry = optionalPathEntry.get();
-    sourcePath = optionalPathEntry.get();
-    String parameterName = sourcePath.getValue().getGet().getParameters().get(0).getName();
-    String parameter = String.format("{%s}", parameterName);
-    final String path = sourcePath.getKey();
-    sourceURL = url(path);
-    if (sourceURL.contains("{")) {
-      sourceURL = sourceURL.replace(parameter, value);
-    } else {
-      sourceURL += String.format("?%s=%s", columnName, value);
+      LOGGER.warn("Invalid filter (need exactly two operands)");
+      return null;
     }
 
-    return true;
+    RexNode node = operands.get(0);
+    if (!(node instanceof RexInputRef)) {
+      LOGGER.warn("Invalid filter (need column on lhs)");
+      return null;
+    }
+    final int key = ((RexInputRef) node).getIndex();
+
+    node = operands.get(1);
+    if (!(node instanceof RexLiteral)) {
+      LOGGER.warn("Invalid filter (need literal on rhs)");
+      return null;
+    }
+    final String value = encode((RexLiteral) node);
+
+    return new AbstractMap.SimpleEntry<>(key, value);
   }
 
-  String encode(RexLiteral literal) {
-    String asString = literal.toString();
-    String typeName = literal.getTypeName().getName();
-    if (typeName.equals("CHAR")) {
+  /**
+   * Attempts to match a given column to an OpenAPI declared path. The column is specified by its
+   * index, and the matched path is specified by its key.
+   * @param columnIndex the index of the column to match
+   * @return the key of the path that has matched.
+   */
+  private String matchPath(int columnIndex) {
+    final String columnName = order.get(columnIndex);
+
+    for (Map.Entry<String, PathItem> entry : api.getPaths().entrySet()) {
+      final Operation get = entry.getValue().getGet();
+      if (get == null) {
+        continue;
+      }
+
+      final List<Parameter> parameters = get.getParameters();
+      // TODO: In case there are multiple parameters, choose or combine them somehow.
+      if (parameters == null || parameters.size() != 1) {
+        continue;
+      }
+
+      final String parameterName = parameters.get(0).getName();
+      // FIXME: This is a heuristic that doesn't work for all APIs!
+      // In queries like /pet/{petId}, the parameter {petId} is mapped to
+      // "id" by removing the lowercased class name
+      final String parameterNameWithoutClass = parameterName.startsWith(schemaKey.toLowerCase())
+          ? lowerCaseFirst(parameterName.substring(schemaKey.length()))
+          : "";
+
+      if (parameterName.equals(columnName) || parameterNameWithoutClass.equals(columnName)) {
+        return entry.getKey();
+      }
+    }
+
+    LOGGER.warn("Column \"" + columnName + "\" not mapped to any path");
+    return null;
+  }
+
+  private String parameterize(String pathKey, int columnIndex, String value) {
+    final String base = url(pathKey);
+
+    // Parameter is passed as part of the query string.
+    if (!base.contains("{")) {
+      final String columnName = order.get(columnIndex);
+      return base + String.format("?%s=%s", columnName, value);
+    }
+
+    // Parameter is passed as part of the path.
+    final PathItem pathItem = api.getPaths().get(pathKey);
+    final String parameterName = pathItem.getGet().getParameters().get(0).getName();
+    final String parameter = String.format("{%s}", parameterName);
+    return base.replace(parameter, value);
+  }
+
+  private String encode(RexLiteral literal) {
+    final String asString = literal.toString();
+    final String typeName = literal.getTypeName().getName();
+    if ("CHAR".equals(typeName)) {
       return asString.substring(1, asString.length() - 1);
     }
     return asString;
   }
 
-  String url(String path) {
-    return api.getServers().get(0).getUrl();
+  private String url(String path) {
+    List<Server> servers = api.getServers();
+    if (servers.isEmpty()) {
+      throw new RuntimeException("No servers defined!");
+    }
+    if (servers.size() > 1) {
+      throw new RuntimeException("More than one server define. Cannot handle this case!");
+    }
+    return servers.get(0).getUrl() + path;
   }
 
   private String lowerCaseFirst(String s) {
-    if (s.isEmpty()) {
-      throw new IllegalArgumentException("Input must not be empty.");
+    if (s == null || s.isEmpty()) {
+      throw new IllegalArgumentException("String to lowercase must not be empty.");
     }
     return s.substring(0, 1).toLowerCase() + s.substring(1);
   }

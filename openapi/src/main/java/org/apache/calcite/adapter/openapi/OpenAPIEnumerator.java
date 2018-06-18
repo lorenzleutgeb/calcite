@@ -17,11 +17,11 @@
 package org.apache.calcite.adapter.openapi;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import io.swagger.models.ArrayModel;
 import io.swagger.v3.core.util.Json;
 import io.swagger.v3.oas.models.Operation;
-import io.swagger.v3.oas.models.PathItem;
+import io.swagger.v3.oas.models.media.ArraySchema;
 import io.swagger.v3.oas.models.media.Content;
+import io.swagger.v3.oas.models.media.MediaType;
 import io.swagger.v3.oas.models.media.Schema;
 import org.apache.calcite.linq4j.Enumerator;
 import org.apache.calcite.util.Source;
@@ -29,23 +29,20 @@ import org.apache.calcite.util.Sources;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * An enumerator for OpenAPI backed things.
- * @param <E> Some generic parameter.
  */
-class OpenAPIEnumerator<E> implements Enumerator<E> {
-  private final Schema entityModel;
-  private final List<String> order;
-  private final int[] fields;
-  private final RowConverter<E> rowConverter;
-  private final Map.Entry<String, PathItem> sourcePath;
+class OpenAPIEnumerator implements Enumerator<Object[]> {
+  private static final String MEDIA_TYPE = "application/json";
+
+  private final RowConverter<Object[]> rowConverter;
+  private final Operation operation;
 
   private JsonNode root;
   private int rootIndex;
-  private E current;
+  private Object[] current;
 
   OpenAPIEnumerator(
       String sourceURL,
@@ -53,13 +50,10 @@ class OpenAPIEnumerator<E> implements Enumerator<E> {
       Schema entityModel,
       List<String> order,
       int[] fields,
-      Map.Entry<String, PathItem> sourcePath
+      Operation operation
   ) {
-    this.entityModel = entityModel;
-    this.order = order;
-    this.fields = fields;
-    this.sourcePath = sourcePath;
-    this.rowConverter = (RowConverter<E>) new ArrayRowConverter(entityModel, order, fields);
+    this.operation = operation;
+    this.rowConverter = new ArrayRowConverter(entityModel, order, fields);
     try {
       Source source = Sources.of(Cache.getFile(sourceURL));
       this.root = Json.mapper().readTree(source.reader());
@@ -75,32 +69,36 @@ class OpenAPIEnumerator<E> implements Enumerator<E> {
     throw new UnsupportedOperationException();
   }
 
-  @Override public E current() {
+  @Override public Object[] current() {
     return current;
   }
 
   @Override public boolean moveNext() {
-    final Operation get = sourcePath.getValue().getGet();
-    Content content = get.getResponses().get("200").getContent();
-    return false;
-    // TODO: This broke when moving to Swagger v3, bring it back somehow...
-    //if (content instanceof ArrayModel) {
-    //  if (rootIndex == root.size()) {
-    //    current = null;
-    //    return false;
-    //  }
-    //  JsonNode currentNode = root.get(rootIndex++);
-    //  current = rowConverter.convertRow(currentNode);
-    //  return true;
-    //} else {
-    //  // assume it is a single object
-    //  if (rootIndex == 0) {
-    //    current = rowConverter.convertRow(root);
-    //    rootIndex = 1;
-    //    return true;
-    //  }
-    //  return false;
-    //}
+    Content content = operation.getResponses().get("200").getContent();
+    MediaType mediaType = content.get(MEDIA_TYPE);
+
+    if (mediaType == null) {
+      throw new RuntimeException("Could not lookup media type " + MEDIA_TYPE);
+    }
+
+    Schema schema = mediaType.getSchema();
+    if (schema instanceof ArraySchema) {
+      if (rootIndex == root.size()) {
+        current = null;
+        return false;
+      }
+      JsonNode currentNode = root.get(rootIndex++);
+      current = rowConverter.convertRow(currentNode);
+      return true;
+    } else {
+      // assume it is a single object
+     if (rootIndex == 0) {
+        current = rowConverter.convertRow(root);
+        rootIndex = 1;
+        return true;
+      }
+      return false;
+    }
   }
 
   public void reset() {
@@ -121,6 +119,7 @@ class OpenAPIEnumerator<E> implements Enumerator<E> {
       if (node == null) {
         return null;
       }
+      // TODO: Maybe add BOOLEAN and FLOAT?
       switch (fieldType) {
       case STRING:
         return node.asText();
@@ -130,16 +129,8 @@ class OpenAPIEnumerator<E> implements Enumerator<E> {
         return node.toString();
       case ARRAY:
         return node.toString();
-//                case BOOLEAN:
-//                    return node.toString();
-
-//               case FLOAT:
-//                  if (string.length() == 0) {
-//                      return null;
-//                  }
-//                  return Float.parseFloat(string);
       default:
-        throw new UnsupportedOperationException();
+        throw new UnsupportedOperationException("RowConverter called with unimplemented FieldType " + fieldType.toString());
       }
     }
   }
@@ -148,12 +139,12 @@ class OpenAPIEnumerator<E> implements Enumerator<E> {
    * Array row converter.
    */
   static class ArrayRowConverter extends RowConverter<Object[]> {
-    private final Schema entityModel;
+    private final Schema schema;
     private final List<String> order;
     private final int[] fields;
 
-    ArrayRowConverter(Schema entityModel, List<String> order, int[] fields) {
-      this.entityModel = entityModel;
+    ArrayRowConverter(Schema schema, List<String> order, int[] fields) {
+      this.schema = schema;
       this.order = order;
       this.fields = fields;
     }
@@ -163,8 +154,8 @@ class OpenAPIEnumerator<E> implements Enumerator<E> {
 
       for (int i = 0; i < fields.length; i++) {
         int field = fields[i];
-        String fieldName = order.get(field);
-        final Schema property = ((Schema) entityModel.getProperties().get(fieldName));
+        final String fieldName = order.get(field);
+        final Schema property = ((Schema) schema.getProperties().get(fieldName));
         final OpenAPIFieldType type = OpenAPIFieldType.of(property.getType());
         objects[i] = convert(type, currentNode.get(fieldName));
       }

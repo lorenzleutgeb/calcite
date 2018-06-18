@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.net.URL;
 import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.regex.Pattern;
@@ -33,20 +34,21 @@ import java.util.regex.Pattern;
 public class Cache {
   protected Cache() {}
 
-  public static File getFile(String url) {
+  static File getFile(String url) {
     final String cacheName = "cache";
     final Pattern schemePattern = Pattern.compile("(https?|wss?|HTTPS?|WSS?):.*");
     if (!schemePattern.matcher(url).matches()) {
       return new File(url);
     }
+
     final File cacheDir = new File(cacheName);
     if (!cacheDir.exists()) {
-      boolean ok = cacheDir.mkdir();
-      assert ok;
+      cacheDir.mkdir();
     }
+
     String target = null;
     try {
-      target = URLEncoder.encode(url, "ISO-8859-1");
+      target = URLEncoder.encode(url, StandardCharsets.UTF_8.name());
     } catch (UnsupportedEncodingException e) {
       e.printStackTrace();
     }
