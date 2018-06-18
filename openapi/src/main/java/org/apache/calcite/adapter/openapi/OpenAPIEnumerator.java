@@ -16,16 +16,18 @@
  */
 package org.apache.calcite.adapter.openapi;
 
+import org.apache.calcite.linq4j.Enumerator;
+import org.apache.calcite.util.Source;
+import org.apache.calcite.util.Sources;
+
 import com.fasterxml.jackson.databind.JsonNode;
+
 import io.swagger.v3.core.util.Json;
 import io.swagger.v3.oas.models.Operation;
 import io.swagger.v3.oas.models.media.ArraySchema;
 import io.swagger.v3.oas.models.media.Content;
 import io.swagger.v3.oas.models.media.MediaType;
 import io.swagger.v3.oas.models.media.Schema;
-import org.apache.calcite.linq4j.Enumerator;
-import org.apache.calcite.util.Source;
-import org.apache.calcite.util.Sources;
 
 import java.io.IOException;
 import java.util.List;
@@ -78,7 +80,11 @@ class OpenAPIEnumerator implements Enumerator<Object[]> {
     MediaType mediaType = content.get(MEDIA_TYPE);
 
     if (mediaType == null) {
-      throw new RuntimeException("Could not lookup media type " + MEDIA_TYPE);
+      throw new RuntimeException(
+          "Could not lookup media type "
+              + MEDIA_TYPE
+              + ". Calcite OpenAPI only supports JSON."
+      );
     }
 
     Schema schema = mediaType.getSchema();
@@ -92,7 +98,7 @@ class OpenAPIEnumerator implements Enumerator<Object[]> {
       return true;
     } else {
       // assume it is a single object
-     if (rootIndex == 0) {
+      if (rootIndex == 0) {
         current = rowConverter.convertRow(root);
         rootIndex = 1;
         return true;
@@ -107,6 +113,7 @@ class OpenAPIEnumerator implements Enumerator<Object[]> {
 
   /**
    * Converts rows.
+   *
    * @param <E> Conversion target type.
    */
   abstract static class RowConverter<E> {
@@ -130,7 +137,10 @@ class OpenAPIEnumerator implements Enumerator<Object[]> {
       case ARRAY:
         return node.toString();
       default:
-        throw new UnsupportedOperationException("RowConverter called with unimplemented FieldType " + fieldType.toString());
+        throw new UnsupportedOperationException(
+            "RowConverter called with unimplemented FieldType "
+                + fieldType.toString()
+        );
       }
     }
   }
@@ -155,7 +165,7 @@ class OpenAPIEnumerator implements Enumerator<Object[]> {
       for (int i = 0; i < fields.length; i++) {
         int field = fields[i];
         final String fieldName = order.get(field);
-        final Schema property = ((Schema) schema.getProperties().get(fieldName));
+        final Schema property = (Schema) schema.getProperties().get(fieldName);
         final OpenAPIFieldType type = OpenAPIFieldType.of(property.getType());
         objects[i] = convert(type, currentNode.get(fieldName));
       }

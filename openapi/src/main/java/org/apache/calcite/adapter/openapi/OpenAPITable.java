@@ -16,12 +16,6 @@
  */
 package org.apache.calcite.adapter.openapi;
 
-import io.swagger.v3.oas.models.OpenAPI;
-import io.swagger.v3.oas.models.Operation;
-import io.swagger.v3.oas.models.PathItem;
-import io.swagger.v3.oas.models.media.Schema;
-import io.swagger.v3.oas.models.parameters.Parameter;
-import io.swagger.v3.oas.models.servers.Server;
 import org.apache.calcite.DataContext;
 import org.apache.calcite.adapter.java.JavaTypeFactory;
 import org.apache.calcite.linq4j.AbstractEnumerable;
@@ -37,6 +31,14 @@ import org.apache.calcite.schema.FilterableTable;
 import org.apache.calcite.schema.impl.AbstractTable;
 import org.apache.calcite.sql.SqlKind;
 import org.apache.calcite.util.Pair;
+
+import io.swagger.v3.oas.models.OpenAPI;
+import io.swagger.v3.oas.models.Operation;
+import io.swagger.v3.oas.models.PathItem;
+import io.swagger.v3.oas.models.media.Schema;
+import io.swagger.v3.oas.models.parameters.Parameter;
+import io.swagger.v3.oas.models.servers.Server;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -52,7 +54,7 @@ import java.util.stream.IntStream;
 /**
  * Wraps OpenAPI result sets as tables.
  */
-public class OpenAPITable<T> extends AbstractTable implements FilterableTable {
+public class OpenAPITable extends AbstractTable implements FilterableTable {
   private static final Logger LOGGER = LoggerFactory.getLogger(OpenAPITable.class);
   private static final String REFERENCE_PREFIX = "#/components/schemas/";
 
@@ -104,7 +106,7 @@ public class OpenAPITable<T> extends AbstractTable implements FilterableTable {
       final OpenAPIFieldType fieldType = OpenAPIFieldType.of(typeString);
       if (fieldType == null) {
         throw new RuntimeException("ERROR: Found unknown type: "
-          + typeString + " for column: " + fieldName);
+            + typeString + " for column: " + fieldName);
       }
       types.add(fieldType.toType(jtypeFactory));
     }
@@ -162,7 +164,7 @@ public class OpenAPITable<T> extends AbstractTable implements FilterableTable {
 
     return new AbstractEnumerable<Object[]>() {
       public Enumerator<Object[]> enumerator() {
-        return new OpenAPIEnumerator<>(
+        return new OpenAPIEnumerator(
             url,
             cancelFlag,
             schema,
@@ -213,6 +215,7 @@ public class OpenAPITable<T> extends AbstractTable implements FilterableTable {
   /**
    * Attempts to match a given column to an OpenAPI declared path. The column is specified by its
    * index, and the matched path is specified by its key.
+   *
    * @param columnIndex the index of the column to match
    * @return the key of the path that has matched.
    */

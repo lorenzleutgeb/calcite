@@ -16,11 +16,13 @@
  */
 package org.apache.calcite.adapter.openapi;
 
-import com.google.common.collect.ImmutableMap;
-import io.swagger.v3.oas.models.OpenAPI;
-import io.swagger.v3.parser.OpenAPIV3Parser;
 import org.apache.calcite.schema.Table;
 import org.apache.calcite.schema.impl.AbstractSchema;
+
+import com.google.common.collect.ImmutableMap;
+
+import io.swagger.v3.oas.models.OpenAPI;
+import io.swagger.v3.parser.OpenAPIV3Parser;
 
 import java.io.File;
 import java.util.Map;

@@ -16,10 +16,12 @@
  */
 package org.apache.calcite.adapter.openapi;
 
-import com.google.common.base.Function;
 import org.apache.calcite.jdbc.CalciteConnection;
 import org.apache.calcite.schema.Schema;
 import org.apache.calcite.util.Util;
+
+import com.google.common.base.Function;
+
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -74,7 +76,8 @@ public class OpenAPITest {
     return result.stream().collect(Collectors.joining(", "));
   }
 
-  @Before public void setUp() throws SQLException {
+  @Before
+  public void setUp() throws SQLException {
     final Properties properties = new Properties();
     connection = DriverManager.getConnection("jdbc:calcite:", properties);
     final CalciteConnection calciteConnection = connection.unwrap(
@@ -89,7 +92,8 @@ public class OpenAPITest {
     statement = connection.createStatement();
   }
 
-  @After public void tearDown() throws SQLException {
+  @After
+  public void tearDown() throws SQLException {
     connection.close();
   }
 
@@ -171,7 +175,8 @@ public class OpenAPITest {
     }
   }
 
-  @Test public void withModel() throws SQLException {
+  @Test
+  public void withModel() throws SQLException {
     final String sql = "select \"id\", \"name\" from \"PetStore\".\"Pet\" "
         + "where \"id\" = 109";
 
