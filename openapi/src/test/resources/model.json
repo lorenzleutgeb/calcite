@@ -18,14 +18,14 @@
  */
 {
   "version": "1.0",
-  "defaultSchema": "SALES",
+  "defaultSchema": "PetStore",
   "schemas": [
     {
       "name": "PetStore",
       "type": "custom",
       "factory": "org.apache.calcite.adapter.openapi.OpenAPISchemaFactory",
       "operand": {
-        "spec": "http://petstore.swagger.io/v2/swagger.json"
+        "spec": "https://lorenz.leutgeb.xyz/tmp/petstore.yaml"
       }
     }
   ]

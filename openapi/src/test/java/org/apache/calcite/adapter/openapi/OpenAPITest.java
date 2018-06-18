@@ -186,7 +186,6 @@ public class OpenAPITest {
       } catch (SQLException e) {
         Assert.fail();
       }
-      System.out.println(r);
       return null;
     });
   }
