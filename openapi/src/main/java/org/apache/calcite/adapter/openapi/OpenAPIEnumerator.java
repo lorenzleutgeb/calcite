@@ -29,6 +29,7 @@ import io.swagger.v3.oas.models.media.Content;
 import io.swagger.v3.oas.models.media.MediaType;
 import io.swagger.v3.oas.models.media.Schema;
 
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -59,6 +60,8 @@ class OpenAPIEnumerator implements Enumerator<Object[]> {
     try {
       Source source = Sources.of(Cache.getFile(sourceURL));
       this.root = Json.mapper().readTree(source.reader());
+    } catch (FileNotFoundException fnfe) {
+      this.root = null;
     } catch (IOException e) {
       this.root = null;
       e.printStackTrace();
@@ -68,7 +71,7 @@ class OpenAPIEnumerator implements Enumerator<Object[]> {
   }
 
   public void close() {
-    throw new UnsupportedOperationException();
+    // TODO: Free resources.
   }
 
   @Override public Object[] current() {
